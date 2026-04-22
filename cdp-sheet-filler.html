@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CDP 數據填寫助手</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+  :root {
+    --bg: #0d0f14; --surface: #151820; --surface2: #1c2030; --border: #252b3b;
+    --accent: #4f8ef7; --accent2: #38d9a9; --text: #e8eaf0; --text-dim: #7a8099;
+    --success: #38d9a9; --error: #f7614f; --warning: #f7d94f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans TC', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 32px 24px; }
+  body::before { content:''; position:fixed; inset:0; background-image: linear-gradient(rgba(79,142,247,0.03) 1px,transparent 1px), linear-gradient(90deg,rgba(79,142,247,0.03) 1px,transparent 1px); background-size:40px 40px; pointer-events:none; z-index:0; }
+  .container { max-width:860px; margin:0 auto; position:relative; z-index:1; }
+  header { margin-bottom:40px; }
+  .logo { font-family:'DM Mono',monospace; font-size:11px; color:var(--accent); letter-spacing:3px; text-transform:uppercase; margin-bottom:12px; opacity:0.8; }
+  h1 { font-size:28px; font-weight:700; letter-spacing:-0.5px; }
+  h1 span { color:var(--accent); }
+  .subtitle { margin-top:8px; font-size:13px; color:var(--text-dim); font-weight:300; }
+  .steps { display:flex; gap:8px; margin-bottom:32px; }
+  .step { flex:1; padding:10px 14px; background:var(--surface); border:1px solid var(--border); border-radius:8px; font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:8px; transition:all 0.3s; }
+  .step.active { border-color:var(--accent); color:var(--text); background:rgba(79,142,247,0.08); }
+  .step.done { border-color:var(--accent2); color:var(--accent2); background:rgba(56,217,169,0.06); }
+  .step-num { width:20px; height:20px; border-radius:50%; background:var(--border); display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:10px; flex-shrink:0; }
+  .step.active .step-num { background:var(--accent); color:#fff; }
+  .step.done .step-num { background:var(--accent2); color:#0d0f14; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:20px; }
+  .card-title { font-size:13px; font-weight:500; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+  .card-title::after { content:''; flex:1; height:1px; background:var(--border); }
+  label { display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; letter-spacing:0.5px; }
+  input[type="text"],input[type="url"] { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 14px; color:var(--text); font-family:'DM Mono',monospace; font-size:13px; outline:none; transition:border-color 0.2s; }
+  input:focus { border-color:var(--accent); }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+  .form-group { margin-bottom:16px; }
+
+  /* Paste zones */
+  .paste-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .paste-zone { border:1.5px dashed var(--border); border-radius:10px; padding:24px 16px; text-align:center; cursor:pointer; transition:all 0.25s; position:relative; background:var(--bg); outline:none; min-height:160px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+  .paste-zone:focus, .paste-zone.focused { border-color:var(--accent); background:rgba(79,142,247,0.07); box-shadow:0 0 0 3px rgba(79,142,247,0.15); }
+  .paste-zone.has-img { border-color:var(--accent2); background:rgba(56,217,169,0.05); border-style:solid; }
+  .paste-zone.pulse { animation: pulseGlow 0.5s ease; }
+  @keyframes pulseGlow { 0%,100%{box-shadow:0 0 0 3px rgba(56,217,169,0.15)} 50%{box-shadow:0 0 0 8px rgba(56,217,169,0.25)} }
+  .paste-icon { font-size:26px; }
+  .paste-title { font-size:12px; font-weight:600; color:var(--accent); }
+  .paste-zone.has-img .paste-title { color:var(--accent2); }
+  .paste-desc { font-size:11px; color:var(--text-dim); line-height:1.5; }
+  .paste-tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; font-family:'DM Mono',monospace; background:rgba(79,142,247,0.15); color:var(--accent); border:1px solid rgba(79,142,247,0.3); }
+  .paste-zone.has-img .paste-tag { background:rgba(56,217,169,0.15); color:var(--accent2); border-color:rgba(56,217,169,0.3); }
+  .kbd { display:inline-block; padding:1px 6px; border-radius:4px; background:var(--surface2); border:1px solid var(--border); font-family:'DM Mono',monospace; font-size:10px; color:var(--text); }
+  .paste-hint { font-size:11px; color:var(--text-dim); display:flex; align-items:center; gap:4px; }
+  .preview-img { max-width:100%; max-height:90px; border-radius:6px; object-fit:contain; }
+  .clear-btn { position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); color:var(--text-dim); font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:2; transition:all 0.2s; }
+  .clear-btn:hover { background:var(--error); color:#fff; border-color:var(--error); }
+  .active-indicator { position:absolute; top:8px; left:8px; width:8px; height:8px; border-radius:50%; background:var(--accent); animation:blink 1s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .btn { width:100%; padding:14px; border-radius:10px; border:none; font-family:'Noto Sans TC',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+  .btn-primary { background:linear-gradient(135deg,var(--accent),#3a6fd8); color:#fff; box-shadow:0 4px 20px rgba(79,142,247,0.3); }
+  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(79,142,247,0.4); }
+  .btn-primary:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
+  .btn-ghost { width:auto; padding:8px 20px; background:transparent; border:1px solid var(--border); color:var(--text-dim); font-size:12px; border-radius:8px; }
+  .btn-ghost:hover { border-color:var(--text-dim); color:var(--text); }
+
+  .loading { display:none; text-align:center; padding:32px; }
+  .spinner { width:36px; height:36px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 16px; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .loading-text { font-size:13px; color:var(--text-dim); }
+  .loading-step { font-size:11px; color:var(--accent); font-family:'DM Mono',monospace; margin-top:6px; }
+
+  .results { display:none; }
+  .result-header { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+  .result-badge { padding:4px 12px; border-radius:20px; font-size:11px; font-family:'DM Mono',monospace; font-weight:500; }
+  .badge-success { background:rgba(56,217,169,0.15); color:var(--accent2); border:1px solid rgba(56,217,169,0.3); }
+  .badge-warn { background:rgba(247,217,79,0.15); color:var(--warning); border:1px solid rgba(247,217,79,0.3); }
+  .data-table-wrap { overflow-x:auto; border-radius:8px; border:1px solid var(--border); margin-bottom:16px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  thead tr { background:var(--surface2); }
+  th { padding:10px 14px; text-align:left; font-weight:500; color:var(--text-dim); font-size:11px; text-transform:uppercase; white-space:nowrap; }
+  td { padding:10px 14px; border-top:1px solid var(--border); font-family:'DM Mono',monospace; white-space:nowrap; }
+  tr:hover td { background:rgba(255,255,255,0.02); }
+  .td-id { color:var(--accent); font-weight:500; }
+  .td-status-ok { color:var(--accent2); }
+  .td-status-miss { color:var(--warning); }
+
+  .write-section { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:20px; margin-top:20px; }
+  .write-title { font-size:13px; font-weight:600; margin-bottom:14px; }
+  .write-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+  .write-field { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px; }
+  .write-field-label { font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .write-field-val { font-family:'DM Mono',monospace; font-size:13px; color:var(--accent2); }
+
+  .log-box { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px; font-family:'DM Mono',monospace; font-size:11px; color:var(--text-dim); max-height:200px; overflow-y:auto; line-height:1.8; }
+  .log-ok { color:var(--accent2); } .log-warn { color:var(--warning); } .log-err { color:var(--error); } .log-info { color:var(--accent); }
+
+  .info-bar { background:rgba(79,142,247,0.08); border:1px solid rgba(79,142,247,0.2); border-radius:8px; padding:12px 16px; font-size:12px; color:var(--text-dim); margin-bottom:20px; line-height:1.6; }
+  .info-bar strong { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">CDP × Google Sheets</div>
+    <h1>數據填寫<span>助手</span></h1>
+    <p class="subtitle">擷取 CDP 後台截圖後直接貼上，自動辨識並寫入 Google Sheet</p>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1"><div class="step-num">1</div>設定連結與腳本</div>
+    <div class="step" id="step2"><div class="step-num">2</div>貼上截圖</div>
+    <div class="step" id="step3"><div class="step-num">3</div>確認並寫入</div>
+  </div>
+
+  <div id="mainForm">
+    <div class="card">
+      <div class="card-title">Google Sheet 設定</div>
+      <div class="form-group">
+        <label>Google Sheet 公開連結（需設為「知道連結的人可以編輯」）</label>
+        <input type="url" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/...">
+      </div>
+      <div class="form-row">
+        <div>
+          <label>分頁名稱（Sheet Tab）</label>
+          <input type="text" id="sheetTab" placeholder="例：【KPI】MAU" value="【KPI】MAU">
+        </div>
+        <div>
+          <label>腳本編號（如 8309）</label>
+          <input type="text" id="scriptId" placeholder="例：8309">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">貼上 CDP 截圖</div>
+      <div class="info-bar">
+        <strong>① 點擊左側區塊</strong> → 擷取「旅程組件進入 + 第1步轉化」截圖 → <span class="kbd">Ctrl</span>+<span class="kbd">V</span><br>
+        <strong>② 點擊右側區塊</strong> → 擷取「總點擊數 + 訂單結果次數」截圖 → <span class="kbd">Ctrl</span>+<span class="kbd">V</span>
+      </div>
+      <div class="paste-grid">
+        <div class="paste-zone" id="zone1" tabindex="0" onclick="activateZone(1)">
+          <div id="activeIndicator1"></div>
+          <div id="preview1"></div>
+          <div id="zoneIcon1" class="paste-icon">📊</div>
+          <div class="paste-title" id="zoneTitle1">點擊後貼上截圖 1</div>
+          <div class="paste-desc" id="zoneDesc1">上站率數據<br>旅程組件進入 · 第1步轉化</div>
+          <span class="paste-tag">上站率</span>
+          <div class="paste-hint"><span class="kbd">Ctrl</span>+<span class="kbd">V</span></div>
+        </div>
+        <div class="paste-zone" id="zone2" tabindex="0" onclick="activateZone(2)">
+          <div id="activeIndicator2"></div>
+          <div id="preview2"></div>
+          <div id="zoneIcon2" class="paste-icon">🎯</div>
+          <div class="paste-title" id="zoneTitle2">點擊後貼上截圖 2</div>
+          <div class="paste-desc" id="zoneDesc2">轉換率數據<br>總點擊數 · 訂單結果次數</div>
+          <span class="paste-tag">轉換率</span>
+          <div class="paste-hint"><span class="kbd">Ctrl</span>+<span class="kbd">V</span></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="analyzeBtn" onclick="startAnalysis()" disabled>
+      🔍 開始辨識並填入數據
+    </button>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div class="loading-text">AI 正在辨識截圖數據...</div>
+    <div class="loading-step" id="loadingStep">初始化中</div>
+  </div>
+
+  <div class="results" id="results">
+    <div class="card">
+      <div class="result-header">
+        <div class="card-title" style="margin:0;flex:1">辨識結果</div>
+        <span class="result-badge badge-success" id="resultBadge">待確認</span>
+      </div>
+      <div class="data-table-wrap">
+        <table>
+          <thead><tr><th>組件編號</th><th>人次（旅程進入）</th><th>上站數（第1步轉化）</th><th>訂單數</th><th>Sheet 狀態</th></tr></thead>
+          <tbody id="resultBody"></tbody>
+        </table>
+      </div>
+      <div class="write-section">
+        <div class="write-title">📝 即將寫入的欄位</div>
+        <div class="write-grid">
+          <div class="write-field"><div class="write-field-label">腳本編號</div><div class="write-field-val" id="wScriptId">—</div></div>
+          <div class="write-field"><div class="write-field-label">分頁</div><div class="write-field-val" id="wTab">—</div></div>
+          <div class="write-field"><div class="write-field-label">寫入欄位</div><div class="write-field-val">H（人次）· L（上站數）· N（訂單數）</div></div>
+          <div class="write-field"><div class="write-field-label">比對依據</div><div class="write-field-val">G 欄組件編號</div></div>
+        </div>
+        <button class="btn btn-primary" id="writeBtn" onclick="writeToSheet()">✅ 確認無誤，寫入 Google Sheet</button>
+      </div>
+    </div>
+    <div class="card" id="logCard" style="display:none">
+      <div class="card-title">寫入紀錄</div>
+      <div class="log-box" id="logBox"></div>
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="resetApp()">← 重新開始</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let fileData = { 1: null, 2: null };
+let activeZone = null;
+let parsedData = [];
+let sheetId = '';
+let sheetTabName = '';
+
+// ── Paste zone logic ──────────────────────────────────────
+function activateZone(num) {
+  activeZone = num;
+  [1, 2].forEach(n => {
+    const z = document.getElementById(`zone${n}`);
+    const ind = document.getElementById(`activeIndicator${n}`);
+    if (n === num) {
+      z.classList.add('focused');
+      ind.innerHTML = '<div class="active-indicator"></div>';
+    } else {
+      z.classList.remove('focused');
+      ind.innerHTML = '';
+    }
+  });
+}
+
+document.addEventListener('paste', async (e) => {
+  if (!activeZone) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const blob = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const base64 = ev.target.result.split(',')[1];
+        fileData[activeZone] = base64;
+        setZoneImage(activeZone, ev.target.result);
+        checkReady();
+      };
+      reader.readAsDataURL(blob);
+      break;
+    }
+  }
+});
+
+function setZoneImage(num, dataUrl) {
+  const zone = document.getElementById(`zone${num}`);
+  const preview = document.getElementById(`preview${num}`);
+  const icon = document.getElementById(`zoneIcon${num}`);
+  const title = document.getElementById(`zoneTitle${num}`);
+  const desc = document.getElementById(`zoneDesc${num}`);
+
+  zone.classList.add('has-img');
+  zone.classList.add('pulse');
+  setTimeout(() => zone.classList.remove('pulse'), 600);
+
+  icon.style.display = 'none';
+  desc.style.display = 'none';
+
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.className = 'preview-img';
+  preview.innerHTML = '';
+  preview.appendChild(img);
+
+  // Clear button
+  if (!zone.querySelector('.clear-btn')) {
+    const btn = document.createElement('button');
+    btn.className = 'clear-btn';
+    btn.innerHTML = '×';
+    btn.onclick = (e) => { e.stopPropagation(); clearZone(num); };
+    zone.appendChild(btn);
+  }
+
+  title.textContent = num === 1 ? '✓ 上站率截圖已貼上' : '✓ 轉換率截圖已貼上';
+
+  // Auto-activate next zone
+  if (num === 1 && !fileData[2]) setTimeout(() => activateZone(2), 300);
+}
+
+function clearZone(num) {
+  fileData[num] = null;
+  const zone = document.getElementById(`zone${num}`);
+  const preview = document.getElementById(`preview${num}`);
+  const icon = document.getElementById(`zoneIcon${num}`);
+  const title = document.getElementById(`zoneTitle${num}`);
+  const desc = document.getElementById(`zoneDesc${num}`);
+  const btn = zone.querySelector('.clear-btn');
+
+  zone.classList.remove('has-img', 'focused');
+  preview.innerHTML = '';
+  icon.style.display = '';
+  desc.style.display = '';
+  title.textContent = num === 1 ? '點擊後貼上截圖 1' : '點擊後貼上截圖 2';
+  if (btn) btn.remove();
+  if (activeZone === num) activeZone = null;
+  checkReady();
+}
+
+function checkReady() {
+  const url = document.getElementById('sheetUrl').value.trim();
+  const script = document.getElementById('scriptId').value.trim();
+  document.getElementById('analyzeBtn').disabled = !(fileData[1] && fileData[2] && url && script);
+}
+
+document.getElementById('sheetUrl').addEventListener('input', checkReady);
+document.getElementById('scriptId').addEventListener('input', checkReady);
+
+// ── Analysis ──────────────────────────────────────────────
+async function startAnalysis() {
+  document.getElementById('mainForm').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+  sheetId = extractSheetId(document.getElementById('sheetUrl').value.trim());
+  sheetTabName = document.getElementById('sheetTab').value.trim();
+  const scriptId = document.getElementById('scriptId').value.trim();
+
+  try {
+    setStep('步驟 1/3：讀取 Google Sheet...');
+    const sheetData = await fetchSheetData();
+
+    setStep('步驟 2/3：AI 辨識截圖數字...');
+    const recognized = await recognizeImages(scriptId);
+
+    setStep('步驟 3/3：比對組件編號...');
+    parsedData = matchWithSheet(recognized, sheetData, scriptId);
+
+    document.getElementById('loading').style.display = 'none';
+    showResults(scriptId);
+  } catch (err) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('mainForm').style.display = 'block';
+    alert('錯誤：' + err.message);
+  }
+}
+
+function setStep(t) { document.getElementById('loadingStep').textContent = t; }
+function extractSheetId(url) { const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/); return m ? m[1] : null; }
+
+async function fetchSheetData() {
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetTabName)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('無法讀取 Google Sheet，請確認連結已設為公開可編輯');
+  const text = await resp.text();
+  return parseCSV(text);
+}
+
+function parseCSV(text) {
+  return text.split('\n').map(line => {
+    const cells = []; let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') { inQ = !inQ; continue; }
+      if (line[i] === ',' && !inQ) { cells.push(cur.trim()); cur = ''; continue; }
+      cur += line[i];
+    }
+    cells.push(cur.trim());
+    return cells;
+  });
+}
+
+async function recognizeImages(scriptId) {
+  const prompt = `你是數據辨識助手。請辨識兩張 CDP 後台截圖的數字。
+腳本編號：${scriptId}
+
+截圖1（上站率頁面）：包含組件編號、旅程組件進入數字、第1步轉化數字
+截圖2（轉換率頁面）：包含組件編號、總點擊數、日租車_支付訂單結果的總次數
+
+回傳純 JSON（無其他文字）：
+{"img1_data":[{"component_id":"組件號數字","journey_enter":數字,"step1_convert":數字}],"img2_data":[{"component_id":"組件號數字","total_clicks":數字,"orders":數字}]}
+
+規則：組件ID只要數字；跳過「直接轉化」行；數字不加逗號；只回傳JSON`;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: fileData[1] } },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: fileData[2] } },
+        { type: 'text', text: prompt }
+      ]}]
+    })
+  });
+
+  if (!resp.ok) throw new Error('AI 辨識失敗');
+  const data = await resp.json();
+  const text = data.content.map(c => c.text || '').join('').replace(/```json|```/g,'').trim();
+  try { return JSON.parse(text); } catch { throw new Error('AI 回傳格式異常，請再試'); }
+}
+
+function matchWithSheet(recognized, sheetData, scriptId) {
+  // Find script block
+  let scriptStart = -1;
+  for (let r = 0; r < sheetData.length; r++) {
+    if (sheetData[r].some(c => c.toString().trim() === scriptId.toString())) { scriptStart = r; break; }
+  }
+  if (scriptStart === -1) throw new Error(`找不到腳本 ${scriptId}`);
+
+  const img1Map = {}, img2Map = {};
+  (recognized.img1_data || []).forEach(d => img1Map[String(d.component_id)] = d);
+  (recognized.img2_data || []).forEach(d => img2Map[String(d.component_id)] = d);
+  const allIds = new Set([...Object.keys(img1Map), ...Object.keys(img2Map)]);
+
+  return [...allIds].map(cid => {
+    let foundRow = -1;
+    for (let r = scriptStart; r < Math.min(sheetData.length, scriptStart + 80); r++) {
+      if (sheetData[r][6]?.toString().trim() === cid) { foundRow = r; break; }
+    }
+    const d1 = img1Map[cid] || {}, d2 = img2Map[cid] || {};
+    return { component_id: cid, journey_enter: d1.journey_enter ?? null, step1_convert: d1.step1_convert ?? null, orders: d2.orders ?? null, sheet_row: foundRow, found: foundRow !== -1 };
+  });
+}
+
+function showResults(scriptId) {
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('wScriptId').textContent = scriptId;
+  document.getElementById('wTab').textContent = sheetTabName;
+
+  const tbody = document.getElementById('resultBody');
+  tbody.innerHTML = '';
+  parsedData.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="td-id">${row.component_id}</td>
+      <td>${row.journey_enter ?? '—'}</td>
+      <td>${row.step1_convert ?? '—'}</td>
+      <td>${row.orders ?? '—'}</td>
+      <td>${row.found ? `<span class="td-status-ok">✓ 第 ${row.sheet_row+1} 行</span>` : '<span class="td-status-miss">⚠ 找不到</span>'}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const found = parsedData.filter(d => d.found).length;
+  const badge = document.getElementById('resultBadge');
+  badge.className = found === parsedData.length ? 'result-badge badge-success' : 'result-badge badge-warn';
+  badge.textContent = found === parsedData.length ? `✓ 全部找到 ${found} 筆` : `${found}/${parsedData.length} 筆找到`;
+
+  ['step1','step2'].forEach(s => document.getElementById(s).className = 'step done');
+  document.getElementById('step3').className = 'step active';
+}
+
+// ── Write to Sheet ────────────────────────────────────────
+async function writeToSheet() {
+  document.getElementById('writeBtn').disabled = true;
+  document.getElementById('writeBtn').textContent = '寫入中...';
+  document.getElementById('logCard').style.display = 'block';
+  const logBox = document.getElementById('logBox');
+  logBox.innerHTML = '';
+
+  const log = (msg, type = '') => {
+    const d = document.createElement('div');
+    d.className = type ? `log-${type}` : '';
+    d.textContent = msg;
+    logBox.appendChild(d);
+    logBox.scrollTop = logBox.scrollHeight;
+  };
+
+  log(`▶ 開始寫入腳本 ${document.getElementById('scriptId').value}...`, 'info');
+  let ok = 0, fail = 0;
+
+  for (const row of parsedData) {
+    if (!row.found) { log(`⚠ 組件 ${row.component_id}：找不到對應行，跳過`, 'warn'); fail++; continue; }
+    const r = row.sheet_row + 1;
+    try {
+      if (row.journey_enter !== null) { await writeCell(sheetTabName, r, 8, row.journey_enter); log(`✓ 組件 ${row.component_id} → H${r}（人次）= ${row.journey_enter}`, 'ok'); }
+      if (row.step1_convert !== null) { await writeCell(sheetTabName, r, 12, row.step1_convert); log(`✓ 組件 ${row.component_id} → L${r}（上站數）= ${row.step1_convert}`, 'ok'); }
+      if (row.orders !== null) { await writeCell(sheetTabName, r, 14, row.orders); log(`✓ 組件 ${row.component_id} → N${r}（訂單數）= ${row.orders}`, 'ok'); }
+      ok++;
+    } catch(err) { log(`✗ 組件 ${row.component_id}：${err.message}`, 'err'); fail++; }
+  }
+
+  log('', '');
+  log(fail === 0 ? `✅ 完成！成功寫入 ${ok} 筆` : `完成。成功 ${ok} 筆，失敗/跳過 ${fail} 筆`, fail === 0 ? 'ok' : 'warn');
+  document.getElementById('writeBtn').textContent = '✅ 已寫入完成';
+}
+
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUeSGhRumD3GUzTfR-kU8i_-1rsXyltwzjlHBPFgXUgymGYdVgHsfalTBo50KB61vAZQ/exec';
+
+async function writeCell(sheetName, row, col, value) {
+  const resp = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ sheetName, row, col, value })
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const result = await resp.json().catch(() => ({}));
+  if (result.error) throw new Error(result.error);
+}
+
+function colLetter_(col) {
+  let l = '';
+  while (col > 0) { l = String.fromCharCode(64 + ((col-1)%26+1)) + l; col = Math.floor((col-1)/26); }
+  return l;
+}
+
+function resetApp() {
+  fileData = {1:null, 2:null}; parsedData = []; activeZone = null;
+  [1,2].forEach(n => clearZone(n));
+  document.getElementById('mainForm').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('logCard').style.display = 'none';
+  document.getElementById('writeBtn').disabled = false;
+  document.getElementById('writeBtn').textContent = '✅ 確認無誤，寫入 Google Sheet';
+  document.getElementById('analyzeBtn').disabled = true;
+  document.querySelectorAll('.step').forEach((s,i) => s.className = i===0?'step active':'step');
+}
+</script>
+</body>
+</html>
